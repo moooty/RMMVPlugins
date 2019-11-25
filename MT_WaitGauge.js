@@ -195,7 +195,8 @@
  *     Event: Event ID
  *
  * === Change Log ===
- * Nov  25, 2019 ver1.10 Changed to update only wait gauge.
+ * Nov  25, 2019 ver1.20 added call common event when wait completed or canceled.
+ * Nov  25, 2019 ver1.10 changed to update only wait gauge.
  * June 19, 2019 ver1.00 initial release.
  *
  * === Manual & License(Japanese) ===
@@ -208,14 +209,14 @@
  *
  * @param gaugeWidth
  * @text ゲージ横幅
- * @desc ウェイトゲージの横幅
+ * @desc ウェイトゲージの横幅(デフォルト：100)
  * @type number
  * @min 0
  * @default 100
  * 
  * @param gaugeHeight
  * @text ゲージ高さ
- * @desc ウェイトゲージの高さ
+ * @desc ウェイトゲージの高さ(デフォルト：20)
  * @type number
  * @min 0
  * @default 20
@@ -234,7 +235,7 @@
  *
  * @param windowPosition
  * @text ウィンドウ表示場所
- * @desc ウェイトゲージの表示場所
+ * @desc ウェイトゲージの表示場所(デフォルト：対象の下)
  * @type select
  * @default 2
  * 
@@ -257,19 +258,19 @@
  *
  * @param windowTextFontSize
  * @text ゲージ名フォントサイズ
- * @desc ゲージ名のフォントサイズ
+ * @desc ゲージ名のフォントサイズ(デフォルト：28)
  * @type number
  * @default 28
  *
  * @param displayWaitValue
  * @text ウェイト進捗表示
- * @desc ウェイトゲージに進捗値(%)を表示するか
+ * @desc ウェイトゲージに進捗値(%)を表示するか(デフォルト：true)
  * @type boolean
  * @default true
  *
  * @param waitValueFontSize
  * @text ウェイト進捗フォントサイズ
- * @desc 進捗値(%)のフォントサイズ
+ * @desc 進捗値(%)のフォントサイズ(デフォルト：28)
  * @type number
  * @default 28
  *
@@ -283,36 +284,37 @@
  * 
  * @param windowMargin
  * @text ウィンドウマージン
- * @desc ゲージ表示対象とゲージウィンドウ間の余白
+ * @desc ゲージ表示対象とゲージウィンドウ間の余白(デフォルト：5)
  * @type number
  * @default 5
  *
  * @param windowPadding
  * @text ウィンドウパディング
- * @desc ゲージウィンドウとウェイトゲージ間の余白
+ * @desc ゲージウィンドウとウェイトゲージ間の余白(デフォルト：18)
  * @type number
  * @default 18
  *
  * @param movableWaiting
  * @text ウェイト中の移動
- * @desc ウェイトゲージ表示中の移動を許可するか
+ * @desc ウェイトゲージ表示中の移動を許可するか(デフォルト：true)
  * @type boolean
  * @default true
  *
  * @param moveWaitCancel
  * @text 移動キャンセル
- * @desc 移動でウェイトをキャンセルするか
+ * @desc 移動でウェイトをキャンセルするか(デフォルト：true)
  * @type boolean
  * @default true
  *
  * @param transferWaitCancel
  * @text 場所移動でキャンセル
- * @desc 場所移動でプレイヤーのウェイトゲージをキャンセルするか(イベントは設定の値にかかわらずリセット)
+ * @desc 場所移動でプレイヤーのウェイトゲージをキャンセルするか(イベントは設定の値にかかわらずリセット)(デフォルト：true)
  * @type boolean
  * @default true
  *
  * @param reWaitMode
  * @text ウェイト中のウェイト
+ * @desc ウェイト中にウェイトを再度設定した時の処理(デフォルト：無視(先優先))
  * @type select
  * @default 1
  * 
@@ -327,20 +329,32 @@
  *
  * @param completeSE
  * @text ウェイト完了SE
- * @desc ウェイトが完了した時に再生するSE
+ * @desc ウェイトが完了した時に再生するSE(デフォルト：Decision1)
  * @type file
  * @require 1
  * @dir audio/se
  * @default Decision1
  *
+ * @param completeCommonEventId
+ * @text ウェイト完了コモンイベント
+ * @desc ウェイトが完了した時に実行するコモンイベント(デフォルト：なし)
+ * @type common_event
+ * @default 0
+ *
  * @param cancelSE
  * @text ウェイトキャンセルSE
- * @desc ウェイトキャンセルされた時に再生するSE
+ * @desc ウェイトキャンセルされた時に再生するSE(デフォルト：Cancel1)
  * @type file
  * @require 1
  * @dir audio/se
  * @default Cancel1
-
+ *
+ * @param cancelCommonEventId
+ * @text ウェイトキャンセルコモンイベント
+ * @desc ウェイトがキャンセルされた時に実行するコモンイベント(デフォルト：なし)
+ * @type common_event
+ * @default 0
+ * 
  * @help
  * === 説明 ===
  * 使い方:
@@ -409,6 +423,7 @@
  *     ゲーム内変数を使用可能です。
  *
  * === 更新履歴 ===
+ * 2019 11/25  ver1.20 ウェイト完了時、キャンセル時に指定のコモンイベントを呼びだせるように修正(プレイヤー・全イベント共通)
  * 2019/11/25  ver1.10 ウェイトゲージがあるものだけupdateするように変更(負荷軽減)
  * 2019/06/19  ver1.00 初版
  *
@@ -471,6 +486,9 @@ function MT_WaitGauge(){
     var windowMargin       = getParamNumber(parameters['windowMargin']       , DEFAULT_WINDOW_MARGIN);
     var windowPadding      = getParamNumber(parameters['windowPadding']      , Window_Base.prototype.standardPadding());
     var reWaitMode         = getParamNumber(parameters['reWaitMode']         , REWAIT_IGNORE);
+
+    var completeCommonEventId = getParamNumber(parameters['completeCommonEventId'], 0);
+    var cancelCommonEventId = getParamNumber(parameters['cancelCommonEventId'], 0);
     
     // SEはプレイヤーとイベントで個別に設定できる方がいいかも？
     var completeSE        = parameters['completeSE'];
@@ -599,6 +617,9 @@ function MT_WaitGauge(){
     Scene_Map.prototype.cancelWait = function(gauge){
 	    if(gauge.isOpen()){
 	        AudioManager.playSe({name: cancelSE, volume: 90, pitch: 100, pan: 0});
+		if(cancelCommonEventId > 0){
+		    $gameTemp.reserveCommonEvent(cancelCommonEventId);
+		}
 	        gauge.close();
 	    }
 
@@ -608,6 +629,11 @@ function MT_WaitGauge(){
     Scene_Map.prototype.completeWait = function(gauge){
 	    if(gauge.isOpen()){
 	        AudioManager.playSe({name: completeSE, volume: 90, pitch: 100, pan: 0});
+
+		if(completeCommonEventId > 0){
+		    $gameTemp.reserveCommonEvent(completeCommonEventId);
+		}
+		
 	        gauge.close();
 	    }
     };    
@@ -703,7 +729,7 @@ function MT_WaitGauge(){
     var _Game_Character_moveStraight = Game_Character.prototype.moveStraight;
     Game_Character.prototype.moveStraight = function(d) {
 	    _Game_Character_moveStraight.call(this, d);
-	
+
 	    if (this.isMovementSucceeded()) {	    
 	        if(this.hasWaitCount() && this._moveWaitCancel){
 		        this.cancelWait();
@@ -874,23 +900,36 @@ function MT_WaitGauge(){
         if(command === COMMAND_NAME){
             switch(args[0].toLowerCase()){
             case 'set':
-		        var targetId = convertEscapeVariable(args[1]);
-		        var frameCount = convertEscapeVariable(args[2]);		
-		        var movable = getParamBoolean(args[3]);
-		        var moveWaitCancel = getParamBoolean(args[4]);
-		        var target = null;
+		var targetId       = convertEscapeVariable(args[1]);
+		var frameCount     = convertEscapeVariable(args[2]);
+
+		var movable;
+		if(args[3] != null){
+		    movable = getParamBoolean(args[3]);
+		}else{
+		    movable = movableWaiting;
+		}
 		
-		        if(targetId == 0 || targetId == "player"){
-		            target = $gamePlayer;
-		        } else if(targetId >= 1){
-		            target = $gameMap.event(targetId);
-		        }
+		var moveCancel;
+		if(args[4] != null){
+		    moveCancel = getParamBoolean(args[4]);
+		}else{
+		    moveCancel = moveWaitCancel;
+		}
+		    
+		var target         = null;
+		if(targetId == 0 || targetId == "player"){
+		    target = $gamePlayer;
+		} else if(targetId >= 1){
+		    target = $gameMap.event(targetId);
+		}
 		
-		        if(target){
-		            target.setWaitCount(frameCount, 0);
-		            target.setMovableWaiting(movable);
-		            target.setMoveCancel(moveWaitCancel);
-		        }
+		if(target){		    
+		    target.setWaitCount(frameCount, 0);
+		    target.setMovableWaiting(movable);
+		    target.setMoveCancel(moveCancel);
+		    
+		}
 
                 break;
 		

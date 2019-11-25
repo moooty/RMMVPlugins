@@ -195,7 +195,8 @@
  *     Event: Event ID
  *
  * === Change Log ===
- * June 19, 2019 ver1.00 initial release
+ * Nov  25, 2019 ver1.10 Changed to update only wait gauge.
+ * June 19, 2019 ver1.00 initial release.
  *
  * === Manual & License(Japanese) ===
  * https://www.5ing-myway.com/rpgmaker-plugin-waitgauge/
@@ -408,7 +409,8 @@
  *     ゲーム内変数を使用可能です。
  *
  * === 更新履歴 ===
- * 2019/6/19  ver1.00 初版
+ * 2019/11/25  ver1.10 ウェイトゲージがあるものだけupdateするように変更(負荷軽減)
+ * 2019/06/19  ver1.00 初版
  *
  * === マニュアル＆ライセンス ===
  * https://www.5ing-myway.com/rpgmaker-plugin-waitgauge/
@@ -430,7 +432,7 @@ function MT_WaitGauge(){
 
 (function(){
     'use strict';
-    const PLUGIN_NAME = "MT_WaitGauge";
+    const PLUGIN_NAME  = "MT_WaitGauge";
     const COMMAND_NAME = "MT_Wait";
     
     // デフォルト値の設定
@@ -498,36 +500,44 @@ function MT_WaitGauge(){
 	    _Scene_Map_update.call(this);
     };
 
+    // ウェイトゲージがあるものだけ更新するように修正
     Scene_Map.prototype.updateWaitGauges = function(){
-	    // プレイヤー
+	// プレイヤー
+	if($gamePlayer.hasWaitCount()){
 	    this.updateWaitGauge($gamePlayer, 0);
+	}	
 
-	    // イベント
-	    for(var i = 1; i < $gameMap.events().length + 1; i++ ){
-	        this.updateWaitGauge($gameMap.event(i), i);
+	// イベント
+	for(var i = 1; i < $gameMap.events().length + 1; i++ ){
+	    var event = $gameMap.event(i);
+	    if(event != null){
+		if(event.hasWaitCount()){
+		    this.updateWaitGauge(event, i);
+		}
 	    }
+	}
     };
 
     // Game_Characterからウェイト値を取得してゲージを更新する
     // Scene_Map._waitGauges[0]    :プレイヤーのウェイトゲージ
     // Scene_Map._waitGauges[index]:イベントIdのウェイトゲージ
     Scene_Map.prototype.updateWaitGauge = function(target, index){
-	    if(target == null){
-	        return ;
-	    }
+	var gauge = this._waitGauges[index];
 
-	    var gauge = this._waitGauges[index];
-	    if(gauge){
-	        if(target.isWaitCanceled()){
-		        this.cancelWait(gauge);
-		        return ;
-	        }
-
-	        if(target.isWaitComplete()){
-		        this.completeWait(gauge);
-		        return ;
-	        }		
+	if(gauge){
+	    if(target.isWaitCanceled()){
+		target.resetWaitCount();
+		this.cancelWait(gauge);
+		return ;
 	    }
+	    
+	    if(target.getCurrentWaitCount() >= target.getWaitGaugeCount()){
+		target.resetWaitCount();
+		target._isWaitCompleted = true;
+		this.completeWait(gauge);
+		return ;
+	    }	    
+	}
 
 	    if(target.getWaitGaugeCount() === 0 || target.getWaitGaugeCount() == null){
 	        return ;
@@ -540,9 +550,15 @@ function MT_WaitGauge(){
 	        gauge.open();
 	    }
 
+	if(target.getCurrentWaitCount() === target.getWaitGaugeCount()){
+	    gauge.close();
+	} else {
 	    this.updateWindowPosition(target, gauge);
-	
+	    
 	    gauge.refresh(target.getWaitGaugeCount(), target.getCurrentWaitCount());
+	}
+
+
 
     };
 
@@ -616,11 +632,6 @@ function MT_WaitGauge(){
     Game_Character.prototype.update = function(){
 	    if(this.hasWaitCount()){
 	        this.addCount(1);
-
-	        if(this._currentWaitCount >= this._waitGaugeCount){
-		        this.resetWaitCount();
-		        this._isWaitCompleted = true;		
-	        }
 	    }
 	    _Game_Character_update.call(this);	
     };
@@ -685,7 +696,7 @@ function MT_WaitGauge(){
 
     // ウェイト中か
     Game_Character.prototype.hasWaitCount = function(){
-	    return this._waitGaugeCount > 0 && this._currentWaitCount < this._waitGaugeCount;
+	    return this._waitGaugeCount > 0 && this._currentWaitCount <= this._waitGaugeCount;
     };
 
     // moveWaitCancelがtrueの時、移動時にキャンセルフラグを立てる
@@ -701,7 +712,6 @@ function MT_WaitGauge(){
     };
 
     Game_Character.prototype.cancelWait = function(){
-	    this.resetWaitCount();
 	    this._isWaitCanceled = true;
     };
     // ---------Game_Character(rpg_objects.js)を上書き ここまで ------------------    

@@ -124,56 +124,57 @@ Imported['MT_MoveSwipe'] = true;
     var originalY;
     var touchX;
     var touchY;
-    var wasSwipe;
-    
+    var swiped;
+    var triggered;
     var _Scene_Map_processMapTouch = Scene_Map.prototype.processMapTouch;
     Scene_Map.prototype.processMapTouch = function() {
 	if($gameSwitches.value(activateSwitch)){
-	    // アイテムスロットクリック時は無効
-	    if(this._mapItemSlotWindow){
-		if(this._mapItemSlotWindow.contains(TouchInput.x, TouchInput.y)){
-		    return;
-		}
-	    }
-	    
 	    // タッチ開始時に原点座標を取得しタッチ位置を描画
 	    if (TouchInput.isTriggered()){
+		// アイテムスロットクリック時は無効
+		if(this._mapItemSlotWindow){
+		    if(this._mapItemSlotWindow.contains(TouchInput.x, TouchInput.y)){
+			return;
+		    }
+
+		}
+		// 押した瞬間を取得しておかないと
+		// メッセージ送りでクリックした時にもonTouchActionが呼びだされてしまう
+		triggered = true;
 		originalX = TouchInput.x;
 		originalY = TouchInput.y;
 
 		this._spriteset.drawTouchCenter(originalX, originalY);
 	    }    
-	    
+
+
 	    // タッチ中は座標を更新し続ける
-	    if(TouchInput.isPressed()){
+ 	    if(TouchInput.isPressed()){
 		touchX = TouchInput.x;
 		touchY = TouchInput.y;
 
 		// 現在のタッチ座標が原点座標と異なる場合のみ移動
-		wasSwipe = false;
-		if(touchX !== originalX || touchY !== originalY){
-		    this._spriteset.drawTouchOuter(touchX, touchY);
-		    this.processMapSwipe();
-		    wasSwipe = true;
+		if(originalX != null && originalY != null){
+		    if(touchX !== originalX || touchY !== originalY){
+			this._spriteset.drawTouchOuter(touchX, touchY);
+			this.processMapSwipe();
+			swiped = true;
+		    }
 		}
 		
 		this._touchCount++;
 	    }
 
-	    
 	    if(TouchInput.isReleased()){
-		// スワイプしていなければタッチアクション実行
-		if(!wasSwipe){
-		    var direction = $gamePlayer.direction();
-		    var frontX = $gameMap.roundXWithDirection($gamePlayer.x, direction);
-		    var frontY = $gameMap.roundYWithDirection($gamePlayer.y, direction);
-		    $gamePlayer.triggerTouchActionD2(frontX, frontY);
+		if(triggered && !swiped){
+		    $gamePlayer.onTouchAction();
 
 		}
 		
 		this._touchCount = 0;
 		this._spriteset.clearTouchSprites();
-		
+		triggered = false;
+		swiped = false;
 		originalX = null;
 		originalY = null;
 	    }
@@ -204,6 +205,56 @@ Imported['MT_MoveSwipe'] = true;
 	    $gameTemp.setDestination($gamePlayer.x + diffX, $gamePlayer.y + diffY);		
 	}
     };
+
+    // タッチ時のアクションを追加
+    // 元々のtriggerTouchAction→スワイプ移動中に呼びだし
+    // onTouchAction→移動せずにタッチした時のみ呼びだし
+    
+    // イベント起動範囲を拡張：
+    // イベントトリガーが「決定キー」で前方3マス・左右のイベントを起動
+    // ※複数起動できるものがあった場合、先に起動条件を満たしたものだけ起動
+    Game_Player.prototype.onTouchAction = function(){
+	if (this.canStartLocalEvents()) {
+            var direction = this.direction();
+	    var triggerTouch = [0];
+	    
+	    var frontX = $gameMap.roundXWithDirection($gamePlayer.x, direction);
+	    var frontY = $gameMap.roundYWithDirection($gamePlayer.y, direction);
+
+            this.startMapEvent(frontX    , frontY, triggerTouch, true);
+	    const dirDown = 2;
+	    const dirLeft = 4;
+	    const dirRight = 6;
+	    const dirUp = 8;
+	    if(direction === dirDown || direction === dirUp){
+		this.startMapEvent(frontX - 1, frontY, triggerTouch, true);
+		this.startMapEvent(frontX + 1, frontY, triggerTouch, true);
+		this.startMapEvent($gamePlayer.x - 1, $gamePlayer.y, triggerTouch, true);
+		this.startMapEvent($gamePlayer.x + 1, $gamePlayer.y, triggerTouch, true);
+	    }
+
+	    if(direction === dirLeft || direction === dirRight){
+		this.startMapEvent(frontX, frontY - 1, triggerTouch, true);
+		this.startMapEvent(frontX, frontY + 1, triggerTouch, true);
+		this.startMapEvent($gamePlayer.x, $gamePlayer.y - 1, triggerTouch, true);
+		this.startMapEvent($gamePlayer.x, $gamePlayer.y + 1, triggerTouch, true);		
+	    }	   
+
+	}
+	return $gameMap.setupStartingEvent();
+    };
+
+    // 決定ボタンでイベントを起動した時にプレイヤーをイベントの方を向かせる
+    var _Game_Player_startMapEvent = Game_Player.prototype.startMapEvent;
+    Game_Player.prototype.startMapEvent = function(x, y, triggers, normal) {
+	if(triggers.contains(0)){
+	    var event = $gameMap.eventsXy(x, y)[0];
+	    if(event != null){
+		this.turnTowardCharacter(event);
+	    }	    
+	}
+	_Game_Player_startMapEvent.apply(this, arguments);
+    };    
 
     // ****************************
     // スプライト

@@ -211,36 +211,53 @@ Imported['MT_MoveSwipe'] = true;
     // onTouchAction→移動せずにタッチした時のみ呼びだし
     
     // イベント起動範囲を拡張：
-    // イベントトリガーが「決定キー」で前方3マス・左右のイベントを起動
+    // プライオリティが「通常キャラと同じ」でイベントトリガーが「決定キー」の場合、前方3マス・左右のイベントを起動
+    // プライオリティが「通常キャラの下」でイベントトリガーが「決定キー」の場合そのマスのイベントを起動
     // ※複数起動できるものがあった場合、先に起動条件を満たしたものだけ起動
     Game_Player.prototype.onTouchAction = function(){
 	if (this.canStartLocalEvents()) {
             var direction = this.direction();
 	    var triggerTouch = [0];
-	    
-	    var frontX = $gameMap.roundXWithDirection($gamePlayer.x, direction);
-	    var frontY = $gameMap.roundYWithDirection($gamePlayer.y, direction);
 
-            this.startMapEvent(frontX    , frontY, triggerTouch, true);
-	    const dirDown = 2;
-	    const dirLeft = 4;
-	    const dirRight = 6;
-	    const dirUp = 8;
-	    if(direction === dirDown || direction === dirUp){
-		this.startMapEvent(frontX - 1, frontY, triggerTouch, true);
-		this.startMapEvent(frontX + 1, frontY, triggerTouch, true);
-		this.startMapEvent($gamePlayer.x - 1, $gamePlayer.y, triggerTouch, true);
-		this.startMapEvent($gamePlayer.x + 1, $gamePlayer.y, triggerTouch, true);
+	    // 同座標(プライオリティが「通常キャラの下」)の決定キーイベントを実行
+	    // 現在のイベントの位置に関係なく、エディタ上のイベント座標で反応する
+	    if($gameMap.eventsXy($gamePlayer.x, $gamePlayer.y).length > 0){
+		if($gameMap.eventsXy($gamePlayer.x, $gamePlayer.y)[0]._trigger === 0){
+		    this.startMapEvent($gamePlayer.x, $gamePlayer.y, triggerTouch, false);
+		    // return $gameMap.setupStartingEvent();
+		}
 	    }
 
-	    if(direction === dirLeft || direction === dirRight){
-		this.startMapEvent(frontX, frontY - 1, triggerTouch, true);
-		this.startMapEvent(frontX, frontY + 1, triggerTouch, true);
-		this.startMapEvent($gamePlayer.x, $gamePlayer.y - 1, triggerTouch, true);
-		this.startMapEvent($gamePlayer.x, $gamePlayer.y + 1, triggerTouch, true);		
-	    }	   
+	    // 足元に決定キーで起動するイベントがない場合、隣接マスのイベントをチェック
+	    var frontX = $gameMap.roundXWithDirection($gamePlayer.x, direction);
+	    var frontY = $gameMap.roundYWithDirection($gamePlayer.y, direction);
+	    
+	    this.startMapEvent(frontX, frontY, triggerTouch, true);
+	    if(!$gameMap.isEventRunning()){
+		const dirDown = 2;
+		const dirLeft = 4;
+		const dirRight = 6;
+		const dirUp = 8;
+		if(direction === dirDown || direction === dirUp){
+		    this.startMapEvent(frontX - 1, frontY, triggerTouch, true);
+		    
+		    this.startMapEvent(frontX + 1, frontY, triggerTouch, true);
+		    this.startMapEvent($gamePlayer.x - 1, $gamePlayer.y, triggerTouch, true);
+		    this.startMapEvent($gamePlayer.x + 1, $gamePlayer.y, triggerTouch, true);
+		    return $gameMap.setupStartingEvent();
+		}
+
+		if(direction === dirLeft || direction === dirRight){
+		    this.startMapEvent(frontX, frontY - 1, triggerTouch, true);
+		    this.startMapEvent(frontX, frontY + 1, triggerTouch, true);
+		    this.startMapEvent($gamePlayer.x, $gamePlayer.y - 1, triggerTouch, true);
+		    this.startMapEvent($gamePlayer.x, $gamePlayer.y + 1, triggerTouch, true);
+		    return $gameMap.setupStartingEvent();
+		}	   
+	    }
 
 	}
+
 	return $gameMap.setupStartingEvent();
     };
 
